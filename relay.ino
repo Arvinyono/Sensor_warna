@@ -2,6 +2,7 @@
 const int trigPin = D1;  // Pin Trig (Trigger) for HC-SR04
 const int echoPin = D2;  // Pin Echo for HC-SR04
 const int relayPin = D3; // Pin for the relay control (Normally Closed)
+const int ledPin = D4; // Pin untuk LED indikator
 
 // Variables
 long duration; // Duration of the ultrasonic pulse
@@ -17,9 +18,12 @@ void setup() {
   pinMode(trigPin, OUTPUT);
   pinMode(echoPin, INPUT);
   pinMode(relayPin, OUTPUT);
+  pinMode(ledPin, OUTPUT);
+  
 
   // Ensure the relay is initially Normally Open
   digitalWrite(relayPin, HIGH); // HIGH = Normally Open (relay off)
+  digitalWrite(ledPin, LOW); // Matikan LED awalnya
 }
 
 void loop() {
@@ -52,6 +56,12 @@ void loop() {
     digitalWrite(relayPin, HIGH); // HIGH = Normally Open (relay off)
     relayState = false;           // Update relay state
     Serial.println("Relay Deactivated (Normally Open)");
+  }
+
+    if (distance < 10) {
+    digitalWrite(ledPin, HIGH); // Hidupkan LED
+  } else {
+    digitalWrite(ledPin, LOW); // Matikan LED
   }
 
   // Add a small delay to avoid rapid readings
