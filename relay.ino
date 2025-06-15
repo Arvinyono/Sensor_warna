@@ -1,43 +1,121 @@
-const int trigPin = D1;   // GPIO5
-const int echoPin = D2;   // GPIO4
-const int relayPin = D5;  // GPIO14 (Ganti ke pin yang lebih aman)
-const int ledPin = D4;    // GPIO2 (LED onboard)
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <Servo.h>
+
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+#define S0 8
+#define S1 9
+#define S2 12
+#define S3 11
+#define OUT 10
+#define SERVO_PIN 6
+
+struct Warna {
+  int merahR = 200, merahG = 50, merahB = 50;
+  int hijauR = 50, hijauG = 200, hijauB = 60;
+  int coklatR = 150, coklatG = 100, coklatB = 40;
+} targetWarna;
+
+const int toleransi = 30;
+Servo myservo;
+const int posAwal = 90;
+const int posMerah = 180;
+bool statusMerah = false;
+
+// Variabel untuk delay servo
+unsigned long waktuDeteksiMerah = 0;
+const unsigned long delayServo = 2000;  // 2 detik
 
 void setup() {
   Serial.begin(9600);
-  pinMode(trigPin, OUTPUT);
-  pinMode(echoPin, INPUT);
-  pinMode(relayPin, OUTPUT);
-  pinMode(ledPin, OUTPUT);
+  lcd.begin(16, 2);
+  lcd.backlight();
+  lcd.print("Deteksi Warna");
   
-  digitalWrite(relayPin, HIGH); // Matikan relay awal
-  digitalWrite(ledPin, HIGH);   // Matikan LED onboard (LOW untuk nyala)
+  pinMode(S0, OUTPUT);
+  pinMode(S1, OUTPUT);
+  digitalWrite(S0, HIGH);
+  digitalWrite(S1, LOW);
+  
+  pinMode(S2, OUTPUT);
+  pinMode(S3, OUTPUT);
+  pinMode(OUT, INPUT);
+
+  myservo.attach(SERVO_PIN);
+  myservo.write(posAwal);
+  delay(1000);
+  lcd.clear();
 }
 
 void loop() {
-  // Baca sensor
-  digitalWrite(trigPin, LOW);
-  delayMicroseconds(2);
-  digitalWrite(trigPin, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(trigPin, LOW);
+  int red, green, blue;
+  bacaWarna(red, green, blue);
+  tampilkanWarna(red, green, blue);
+  kontrolServo(red, green, blue);
+  delay(200);
+}
 
-  long duration = pulseIn(echoPin, HIGH);
-  int distance = duration * 0.034 / 2;
+void bacaWarna(int &red, int &green, int &blue) {
+  digitalWrite(S2, LOW); digitalWrite(S3, LOW);
+  red = pulseIn(OUT, LOW);
+  red = map(red, 0, 255, 255, 0);
+  
+  digitalWrite(S2, HIGH); digitalWrite(S3, HIGH);
+  green = pulseIn(OUT, LOW);
+  green = map(green, 0, 255, 255, 0);
+  
+  digitalWrite(S2, LOW); digitalWrite(S3, HIGH);
+  blue = pulseIn(OUT, LOW);
+  blue = map(blue, 0, 255, 255, 0);
 
-  Serial.print("Distance: ");
-  Serial.print(distance);
-  Serial.println(" cm");
+  red = constrain(red, 0, 255);
+  green = constrain(green, 0, 255);
+  blue = constrain(blue, 0, 255);
+}
 
-  // Kontrol relay dan LED
-  if (distance < 10 && !digitalRead(relayPin)) {
-    digitalWrite(relayPin, LOW);  // Relay ON
-    digitalWrite(ledPin, LOW);    // LED ON (jika pakai onboard)
-    Serial.println("Objek dekat - Relay ON");
-    delay(5000);                  // Tunda 5 detik
-    digitalWrite(relayPin, HIGH); // Relay OFF
-    digitalWrite(ledPin, HIGH);   // LED OFF
-    Serial.println("Relay OFF");
+void tampilkanWarna(int red, int green, int blue) {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("R:"); lcd.print(red);
+  lcd.print(" G:"); lcd.print(green);
+  
+  lcd.setCursor(0, 1);
+  lcd.print("B:"); lcd.print(blue);
+
+  if (deteksiWarna(red, green, blue, targetWarna.merahR, targetWarna.merahG, targetWarna.merahB)) {
+    lcd.print(" MERAH");
+  } 
+  else if (deteksiWarna(red, green, blue, targetWarna.hijauR, targetWarna.hijauG, targetWarna.hijauB)) {
+    lcd.print(" HIJAU");
   }
-  delay(100);
+  else if (deteksiWarna(red, green, blue, targetWarna.coklatR, targetWarna.coklatG, targetWarna.coklatB)) {
+    lcd.print(" COKLAT");
+  }
+  else {
+    lcd.print(" TIDAK DIKENALI");
+  }
+}
+
+bool deteksiWarna(int red, int green, int blue, int targetR, int targetG, int targetB) {
+  return (abs(red - targetR) < toleransi && 
+         abs(green - targetG) < toleransi && 
+         abs(blue - targetB) < toleransi);
+}
+
+void kontrolServo(int red, int green, int blue) {
+  bool merahTerbaca = deteksiWarna(red, green, blue, targetWarna.merahR, targetWarna.merahG, targetWarna.merahB);
+  
+  if (merahTerbaca && !statusMerah) {
+    myservo.write(posMerah);
+    lcd.setCursor(13, 1);
+    lcd.print("->");
+    statusMerah = true;
+    waktuDeteksiMerah = millis();  // Catat waktu deteksi
+  } 
+  else if (!merahTerbaca && statusMerah) {
+    if (millis() - waktuDeteksiMerah >= delayServo) {  // Tunggu 2 detik
+      myservo.write(posAwal);
+      statusMerah = false;
+    }
+  }
 }
