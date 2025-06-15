@@ -2,7 +2,7 @@
 #include <LiquidCrystal_I2C.h>
 #include <Servo.h>
 
-// Inisialisasi LCD I2C (address biasanya 0x27 atau 0x3F)
+// Inisialisasi LCD I2C
 LiquidCrystal_I2C lcd(0x27, 16, 2); 
 
 // Pin Sensor TCS3200
@@ -18,24 +18,27 @@ LiquidCrystal_I2C lcd(0x27, 16, 2);
 // Variabel warna
 int red, green, blue;
 
-// Kalibrasi manual (sesuaikan dengan pengukuran Anda)
-int hijauR = 50, hijauG = 200, hijauB = 60;    // Contoh nilai hijau
-int coklatR = 150, coklatG = 100, coklatB = 40; // Contoh nilai coklat
-int toleransi = 30; // Toleransi deteksi warna
+// Kalibrasi warna (sesuaikan dengan pengukuran)
+int hijauR = 50, hijauG = 200, hijauB = 60;
+int coklatR = 150, coklatG = 100, coklatB = 40;
+int merahR = 200, merahG = 50, merahB = 50; // Nilai untuk merah
+int toleransi = 30;
 
-// Inisialisasi Servo
+// Variabel Servo
 Servo myservo;
-int pos = 90; // Posisi netral servo (90 derajat)
+int posAwal = 90; // Posisi awal/netral
+int posAktif = 180; // Posisi ketika mendeteksi merah
+bool merahTerdeteksi = false;
 
 void setup() {
   Serial.begin(9600);
   
   // Inisialisasi LCD
-  lcd.begin(16, 2); // Ganti init() dengan begin()
+  lcd.begin(16, 2);
   lcd.backlight();
   lcd.print("Deteksi Warna");
   
-  // Set frekuensi sensor TCS3200 (20%)
+  // Konfigurasi sensor TCS3200
   pinMode(S0, OUTPUT);
   pinMode(S1, OUTPUT);
   digitalWrite(S0, HIGH);
@@ -45,9 +48,9 @@ void setup() {
   pinMode(S3, OUTPUT);
   pinMode(OUT, INPUT);
 
-  // Attach servo
+  // Inisialisasi Servo
   myservo.attach(SERVO_PIN);
-  myservo.write(pos); // Posisi awal
+  myservo.write(posAwal);
 
   delay(1000);
   lcd.clear();
@@ -61,25 +64,20 @@ void loop() {
 }
 
 void bacaWarna() {
-  // Baca Red
-  digitalWrite(S2, LOW);
-  digitalWrite(S3, LOW);
+  // Baca komponen warna
+  digitalWrite(S2, LOW); digitalWrite(S3, LOW);
   red = pulseIn(OUT, LOW);
-  red = map(red, 0, 255, 255, 0); // Inversi nilai
+  red = map(red, 0, 255, 255, 0);
   
-  // Baca Green
-  digitalWrite(S2, HIGH);
-  digitalWrite(S3, HIGH);
+  digitalWrite(S2, HIGH); digitalWrite(S3, HIGH);
   green = pulseIn(OUT, LOW);
   green = map(green, 0, 255, 255, 0);
   
-  // Baca Blue
-  digitalWrite(S2, LOW);
-  digitalWrite(S3, HIGH);
+  digitalWrite(S2, LOW); digitalWrite(S3, HIGH);
   blue = pulseIn(OUT, LOW);
   blue = map(blue, 0, 255, 255, 0);
 
-  // Batasi nilai 0-255
+  // Batasi nilai
   red = constrain(red, 0, 255);
   green = constrain(green, 0, 255);
   blue = constrain(blue, 0, 255);
@@ -94,36 +92,40 @@ void tampilkanWarna() {
   lcd.setCursor(0, 1);
   lcd.print("B:"); lcd.print(blue);
 
-  // Deteksi warna
-  if (isColor(hijauR, hijauG, hijauB)) {
+  if (isColor(merahR, merahG, merahB)) {
+    lcd.print(" MERAH");
+    merahTerdeteksi = true;
+  } 
+  else if (isColor(hijauR, hijauG, hijauB)) {
     lcd.print(" HIJAU");
-  } else if (isColor(coklatR, coklatG, coklatB)) {
+    merahTerdeteksi = false;
+  }
+  else if (isColor(coklatR, coklatG, coklatB)) {
     lcd.print(" COKLAT");
-  } else {
+    merahTerdeteksi = false;
+  }
+  else {
     lcd.print(" TIDAK DIKENALI");
+    merahTerdeteksi = false;
   }
 }
 
-// Fungsi deteksi warna dengan toleransi
 bool isColor(int targetR, int targetG, int targetB) {
   return (abs(red - targetR) < toleransi) && 
          (abs(green - targetG) < toleransi) && 
          (abs(blue - targetB) < toleransi);
 }
 
-// Kontrol Servo berdasarkan warna
 void kontrolServo() {
-  if (isColor(hijauR, hijauG, hijauB)) {
-    myservo.write(180); // Kanan (180 derajat)
-    lcd.setCursor(13, 1);
-    lcd.print("->");
-  } 
-  else if (isColor(coklatR, coklatG, coklatB)) {
-    myservo.write(0); // Kiri (0 derajat)
-    lcd.setCursor(13, 1);
-    lcd.print("<-");
-  }
-  else {
-    myservo.write(90); // Netral (90 derajat)
+  if (isColor(merahR, merahG, merahB)) {
+    if (!merahTerdeteksi) {
+      myservo.write(posAktif); // Pindah ke kanan
+      lcd.setCursor(13, 1);
+      lcd.print("->");
+    }
+  } else {
+    if (merahTerdeteksi) {
+      myservo.write(posAwal); // Kembali ke posisi awal
+    }
   }
 }
