@@ -1,5 +1,6 @@
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
+#include <Servo.h>
 
 // Inisialisasi LCD I2C (address biasanya 0x27 atau 0x3F)
 LiquidCrystal_I2C lcd(0x27, 16, 2); 
@@ -11,6 +12,9 @@ LiquidCrystal_I2C lcd(0x27, 16, 2);
 #define S3 11
 #define OUT 10
 
+// Pin Servo
+#define SERVO_PIN 6
+
 // Variabel warna
 int red, green, blue;
 
@@ -19,11 +23,15 @@ int hijauR = 50, hijauG = 200, hijauB = 60;    // Contoh nilai hijau
 int coklatR = 150, coklatG = 100, coklatB = 40; // Contoh nilai coklat
 int toleransi = 30; // Toleransi deteksi warna
 
+// Inisialisasi Servo
+Servo myservo;
+int pos = 90; // Posisi netral servo (90 derajat)
+
 void setup() {
   Serial.begin(9600);
   
   // Inisialisasi LCD
-  lcd.init();
+  lcd.begin(16, 2); // Ganti init() dengan begin()
   lcd.backlight();
   lcd.print("Deteksi Warna");
   
@@ -37,6 +45,10 @@ void setup() {
   pinMode(S3, OUTPUT);
   pinMode(OUT, INPUT);
 
+  // Attach servo
+  myservo.attach(SERVO_PIN);
+  myservo.write(pos); // Posisi awal
+
   delay(1000);
   lcd.clear();
 }
@@ -44,6 +56,7 @@ void setup() {
 void loop() {
   bacaWarna();
   tampilkanWarna();
+  kontrolServo();
   delay(1000);
 }
 
@@ -96,4 +109,21 @@ bool isColor(int targetR, int targetG, int targetB) {
   return (abs(red - targetR) < toleransi) && 
          (abs(green - targetG) < toleransi) && 
          (abs(blue - targetB) < toleransi);
+}
+
+// Kontrol Servo berdasarkan warna
+void kontrolServo() {
+  if (isColor(hijauR, hijauG, hijauB)) {
+    myservo.write(180); // Kanan (180 derajat)
+    lcd.setCursor(13, 1);
+    lcd.print("->");
+  } 
+  else if (isColor(coklatR, coklatG, coklatB)) {
+    myservo.write(0); // Kiri (0 derajat)
+    lcd.setCursor(13, 1);
+    lcd.print("<-");
+  }
+  else {
+    myservo.write(90); // Netral (90 derajat)
+  }
 }
